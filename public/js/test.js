@@ -6,7 +6,6 @@
 class TestManager {
     constructor() {
         this.currentTab = 'connection';
-        this.pendingTests = new Map(); // 진행 중인 테스트 추적
         this.init();
     }
 
@@ -73,7 +72,7 @@ class TestManager {
         tabButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const tabName = button.getAttribute('data-tab');
-                
+
                 // 모든 탭 버튼에서 active 클래스 제거
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 // 클릭된 버튼에 active 클래스 추가
@@ -93,72 +92,13 @@ class TestManager {
     }
 
     // ============================================
-    // Socket을 통한 실시간 테스트 (우선적으로 사용)
-    // ============================================
-
-    testConnectionViaSocket() {
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            const resultsContainer = document.getElementById('connectionResults');
-            const button = document.getElementById('btnTestConnection');
-            
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 'GitHub API 연결을 테스트하는 중...');
-            
-            this.pendingTests.set('connection', { button, resultsContainer, title: 'GitHub API 연결 테스트' });
-            window.socketUtils.requestTest('connection');
-            return true;
-        }
-        return false;
-    }
-
-    testAuthenticationViaSocket() {
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            const resultsContainer = document.getElementById('connectionResults');
-            const button = document.getElementById('btnTestAuth');
-            
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 'GitHub 토큰 인증을 검증하는 중...');
-            
-            this.pendingTests.set('authentication', { button, resultsContainer, title: 'GitHub 토큰 인증 테스트' });
-            window.socketUtils.requestTest('authentication');
-            return true;
-        }
-        return false;
-    }
-
-    // Socket을 통한 테스트 결과 처리
-    handleSocketTestResult(testType, result, params = {}) {
-        const testInfo = this.pendingTests.get(testType);
-        if (!testInfo) {
-            console.warn(`처리되지 않은 테스트 결과: ${testType}`);
-            return;
-        }
-
-        const { button, resultsContainer, title } = testInfo;
-        
-        this.clearResults(resultsContainer);
-        this.displayTestResult(resultsContainer, title, result);
-        this.setButtonLoading(button, false);
-        
-        // 완료된 테스트 제거
-        this.pendingTests.delete(testType);
-    }
-
-    // ============================================
     // 연결 테스트
     // ============================================
 
     async testConnection() {
-        // Socket 연결이 가능하면 Socket 사용, 아니면 HTTP API 사용
-        if (this.testConnectionViaSocket()) {
-            return;
-        }
-
         const resultsContainer = document.getElementById('connectionResults');
         const button = document.getElementById('btnTestConnection');
-        
+
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, 'GitHub API 연결을 테스트하는 중...');
@@ -171,7 +111,7 @@ class TestManager {
             this.displayTestResult(resultsContainer, 'GitHub API 연결 테스트', result);
         } catch (error) {
             this.clearResults(resultsContainer);
-            this.displayError(resultsContainer, 'GitHub API 연결 테스트', 
+            this.displayError(resultsContainer, 'GitHub API 연결 테스트',
                 `네트워크 오류: ${error.message}`, {
                     errorType: 'NetworkError',
                     possibleCauses: [
@@ -186,14 +126,9 @@ class TestManager {
     }
 
     async testAuthentication() {
-        // Socket 연결이 가능하면 Socket 사용, 아니면 HTTP API 사용
-        if (this.testAuthenticationViaSocket()) {
-            return;
-        }
-
         const resultsContainer = document.getElementById('connectionResults');
         const button = document.getElementById('btnTestAuth');
-        
+
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, 'GitHub 토큰 인증을 검증하는 중...');
@@ -228,10 +163,10 @@ class TestManager {
         const repoSelect = document.getElementById('repoSelect');
         const resultsContainer = document.getElementById('repositoryResults');
         const button = document.getElementById('btnTestRepo');
-        
+
         const selectedRepo = repoSelect.value;
         if (!selectedRepo) {
-            this.displayError(resultsContainer, '리포지토리 테스트', 
+            this.displayError(resultsContainer, '리포지토리 테스트',
                 '테스트할 리포지토리를 선택해주세요.', {
                     errorType: 'ValidationError',
                     possibleCauses: ['리포지토리 선택 드롭다운에서 리포지토리를 선택해주세요']
@@ -239,22 +174,6 @@ class TestManager {
             return;
         }
 
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, `${selectedRepo} 리포지토리 상태를 확인하는 중...`);
-            
-            this.pendingTests.set('repository', { 
-                button, 
-                resultsContainer, 
-                title: `${selectedRepo} 리포지토리 테스트` 
-            });
-            window.socketUtils.requestTest('repository', { repoName: selectedRepo });
-            return;
-        }
-
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, `${selectedRepo} 리포지토리 상태를 확인하는 중...`);
@@ -283,23 +202,7 @@ class TestManager {
     async testAllRepositories() {
         const resultsContainer = document.getElementById('repositoryResults');
         const button = document.getElementById('btnTestAllRepos');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, '모든 리포지토리 상태를 확인하는 중...');
-            
-            this.pendingTests.set('all-repositories', { 
-                button, 
-                resultsContainer, 
-                title: '전체 리포지토리 테스트' 
-            });
-            window.socketUtils.requestTest('all-repositories');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, '모든 리포지토리 상태를 확인하는 중...');
@@ -335,10 +238,10 @@ class TestManager {
         const branchInput = document.getElementById('branchName');
         const resultsContainer = document.getElementById('branchResults');
         const button = document.getElementById('btnTestBranches');
-        
+
         const selectedRepo = repoSelect.value;
         if (!selectedRepo) {
-            this.displayError(resultsContainer, '브랜치 테스트', 
+            this.displayError(resultsContainer, '브랜치 테스트',
                 '테스트할 리포지토리를 선택해주세요.', {
                     errorType: 'ValidationError',
                     possibleCauses: ['리포지토리 선택 드롭다운에서 리포지토리를 선택해주세요']
@@ -349,26 +252,9 @@ class TestManager {
         const branches = branchInput.value.trim() || 'master,release,develop';
         const branchList = branches.split(',').map(b => b.trim()).filter(b => b);
 
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 
-                `${selectedRepo} 리포지토리의 브랜치 [${branchList.join(', ')}]를 확인하는 중...`);
-            
-            this.pendingTests.set('branches', { 
-                button, 
-                resultsContainer, 
-                title: `${selectedRepo} 브랜치 테스트` 
-            });
-            window.socketUtils.requestTest('branches', { repository: selectedRepo, branches: branchList });
-            return;
-        }
-
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
-        this.showLoadingMessage(resultsContainer, 
+        this.showLoadingMessage(resultsContainer,
             `${selectedRepo} 리포지토리의 브랜치 [${branchList.join(', ')}]를 확인하는 중...`);
 
         try {
@@ -405,23 +291,7 @@ class TestManager {
     async testAllBranches() {
         const resultsContainer = document.getElementById('branchResults');
         const button = document.getElementById('btnTestAllBranches');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, '모든 리포지토리의 브랜치를 확인하는 중...');
-            
-            this.pendingTests.set('all-branches', { 
-                button, 
-                resultsContainer, 
-                title: '전체 브랜치 테스트' 
-            });
-            window.socketUtils.requestTest('all-branches');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, '모든 리포지토리의 브랜치를 확인하는 중...');
@@ -455,23 +325,7 @@ class TestManager {
     async testPermissions() {
         const resultsContainer = document.getElementById('permissionResults');
         const button = document.getElementById('btnTestPermissions');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 'GitHub 접근 권한을 검증하는 중...');
-            
-            this.pendingTests.set('permissions', { 
-                button, 
-                resultsContainer, 
-                title: '전체 권한 테스트' 
-            });
-            window.socketUtils.requestTest('permissions');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, 'GitHub 접근 권한을 검증하는 중...');
@@ -501,23 +355,7 @@ class TestManager {
     async testPRPermission() {
         const resultsContainer = document.getElementById('permissionResults');
         const button = document.getElementById('btnTestPRPermission');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 'Pull Request 생성 권한을 확인하는 중...');
-            
-            this.pendingTests.set('pr-permission', { 
-                button, 
-                resultsContainer, 
-                title: 'PR 생성 권한 테스트' 
-            });
-            window.socketUtils.requestTest('pr-permission');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, 'Pull Request 생성 권한을 확인하는 중...');
@@ -547,23 +385,7 @@ class TestManager {
     async testBranchPermission() {
         const resultsContainer = document.getElementById('permissionResults');
         const button = document.getElementById('btnTestBranchPermission');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, '브랜치 생성 권한을 확인하는 중...');
-            
-            this.pendingTests.set('branch-permission', { 
-                button, 
-                resultsContainer, 
-                title: '브랜치 생성 권한 테스트' 
-            });
-            window.socketUtils.requestTest('branch-permission');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, '브랜치 생성 권한을 확인하는 중...');
@@ -599,12 +421,12 @@ class TestManager {
         const methodSelect = document.getElementById('apiMethod');
         const resultsContainer = document.getElementById('apiResults');
         const button = document.getElementById('btnTestAPI');
-        
+
         const endpoint = endpointInput.value.trim();
         const method = methodSelect.value;
 
         if (!endpoint) {
-            this.displayError(resultsContainer, 'API 호출 테스트', 
+            this.displayError(resultsContainer, 'API 호출 테스트',
                 'API 엔드포인트를 입력해주세요.', {
                     errorType: 'ValidationError',
                     possibleCauses: [
@@ -615,22 +437,6 @@ class TestManager {
             return;
         }
 
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, `${method} ${endpoint} API를 호출하는 중...`);
-            
-            this.pendingTests.set('api-call', { 
-                button, 
-                resultsContainer, 
-                title: `${method} ${endpoint} API 테스트` 
-            });
-            window.socketUtils.requestTest('api-call', { endpoint, method });
-            return;
-        }
-
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, `${method} ${endpoint} API를 호출하는 중...`);
@@ -669,23 +475,7 @@ class TestManager {
     async testRateLimit() {
         const resultsContainer = document.getElementById('apiResults');
         const button = document.getElementById('btnTestRateLimit');
-        
-        // Socket 테스트 시도
-        if (window.socketUtils && window.socketUtils.isConnected()) {
-            this.setButtonLoading(button, true);
-            this.clearResults(resultsContainer);
-            this.showLoadingMessage(resultsContainer, 'GitHub API Rate Limit을 확인하는 중...');
-            
-            this.pendingTests.set('rate-limit', { 
-                button, 
-                resultsContainer, 
-                title: 'Rate Limit 확인' 
-            });
-            window.socketUtils.requestTest('rate-limit');
-            return;
-        }
 
-        // HTTP API 테스트
         this.setButtonLoading(button, true);
         this.clearResults(resultsContainer);
         this.showLoadingMessage(resultsContainer, 'GitHub API Rate Limit을 확인하는 중...');
@@ -718,10 +508,10 @@ class TestManager {
 
     setButtonLoading(button, loading) {
         if (!button) return;
-        
+
         if (loading) {
             button.disabled = true;
-            button.dataset.originalText = button.innerHTML;
+            button.dataset.originalText = button.textContent;
             button.innerHTML = '<span>⏳</span> 테스트 중...';
             button.classList.add('loading');
         } else {
@@ -739,7 +529,7 @@ class TestManager {
 
     showLoadingMessage(container, message) {
         if (!container) return;
-        
+
         container.innerHTML = `
             <div class="test-result loading">
                 <div class="result-header">
@@ -768,7 +558,7 @@ class TestManager {
 
         if (data && Object.keys(data).length > 0) {
             html += '<div class="result-details">';
-            
+
             if (success) {
                 // 성공 시 데이터 표시
                 html += this.formatSuccessData(data);
@@ -776,7 +566,7 @@ class TestManager {
                 // 실패 시 상세 에러 정보 표시
                 html += this.formatErrorData(data);
             }
-            
+
             html += '</div>';
         }
 
@@ -808,7 +598,7 @@ class TestManager {
 
     formatSuccessData(data) {
         let html = '<div class="success-data">';
-        
+
         if (Array.isArray(data)) {
             // 배열 데이터 처리
             html += '<div class="data-list">';
@@ -826,7 +616,7 @@ class TestManager {
             // 기본 데이터 처리
             html += `<div class="data-value">${data}</div>`;
         }
-        
+
         html += '</div>';
         return html;
     }
@@ -871,7 +661,7 @@ class TestManager {
         }
 
         // 추가 세부 정보
-        const additionalKeys = Object.keys(data).filter(key => 
+        const additionalKeys = Object.keys(data).filter(key =>
             !['statusCode', 'statusText', 'errorType', 'timestamp', 'possibleCauses'].includes(key)
         );
 
@@ -895,13 +685,13 @@ class TestManager {
 
     formatDataObject(obj) {
         let html = '<div class="data-object">';
-        
+
         Object.entries(obj).forEach(([key, value]) => {
             if (value !== null && value !== undefined) {
                 html += `<div class="data-item">
                     <span class="data-key">${key}:</span>
                     <span class="data-value">`;
-                
+
                 if (typeof value === 'object') {
                     if (Array.isArray(value)) {
                         html += value.join(', ');
@@ -911,11 +701,11 @@ class TestManager {
                 } else {
                     html += value;
                 }
-                
+
                 html += '</span></div>';
             }
         });
-        
+
         html += '</div>';
         return html;
     }
