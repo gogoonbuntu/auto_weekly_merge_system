@@ -2,9 +2,18 @@ const { Octokit } = require('@octokit/rest');
 const logger = require('../utils/logger');
 
 class GitHubService {
-  constructor(token = null) {
-    // 토큰은 생성자에서 받거나 환경변수에서 가져옴
-    this.token = token || process.env.GITHUB_TOKEN;
+  constructor(configManager = null, token = null) {
+    // 설정 관리자 또는 직접 토큰 사용
+    this.configManager = configManager;
+    this.token = token;
+    
+    if (!this.token && this.configManager) {
+      try {
+        this.token = this.configManager.getGitHubToken();
+      } catch (error) {
+        logger.warn('GitHub 토큰을 가져올 수 없습니다:', error.message);
+      }
+    }
     
     if (this.token) {
       this.octokit = new Octokit({
@@ -12,7 +21,7 @@ class GitHubService {
       });
     }
     
-    this.org = process.env.GITHUB_ORG;
+    this.org = this.configManager ? this.configManager.get('GITHUB_ORG') : process.env.GITHUB_ORG;
     this.isConfigured = !!this.token;
   }
 

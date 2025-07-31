@@ -3,15 +3,23 @@ const logger = require('../utils/logger');
 const EventEmitter = require('events');
 
 class MergeManager extends EventEmitter {
-  constructor() {
+  constructor(configManager = null) {
     super();
-    this.githubService = new GitHubService();
-    this.repositories = process.env.REPOSITORIES.split(',').map(repo => repo.trim());
+    this.configManager = configManager;
+    
+    // 보안 설정으로 GitHub 서비스 초기화
+    this.githubService = new GitHubService(configManager);
+    
+    // 리포지토리 목록 가져오기
+    this.repositories = configManager 
+      ? configManager.getAll().repositories 
+      : (process.env.REPOSITORIES || '').split(',').map(repo => repo.trim()).filter(Boolean);
+      
     this.currentProcess = null;
     this.processHistory = [];
     
     // 토큰 상태 추적
-    this.tokenConfigured = false;
+    this.tokenConfigured = this.githubService.isTokenConfigured();
   }
 
   // ===============================

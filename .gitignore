@@ -18,6 +18,12 @@ github_*
 secrets.json
 config/secrets.js
 
+# 보안 토큰 저장 파일들 (새로 추가)
+.token_key
+.secure_tokens
+*.encrypted
+*.keystore
+
 # Logs
 logs/
 *.log

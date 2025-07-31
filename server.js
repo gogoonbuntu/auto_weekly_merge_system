@@ -1,11 +1,10 @@
-require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 
+const config = require('./src/config/config');
 const MergeManager = require('./services/mergeManager');
 const logger = require('./utils/logger');
 const { setupSocketEvents } = require('./utils/socketEvents');
@@ -20,10 +19,21 @@ const io = socketIo(server, {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = config.get('PORT', 3000);
 
-// 머지 매니저 인스턴스 생성
-const mergeManager = new MergeManager();
+// 설정 검증
+const validation = config.validate();
+if (!validation.isValid) {
+  logger.error('설정 오류:', validation.errors);
+  process.exit(1);
+}
+
+if (validation.warnings.length > 0) {
+  validation.warnings.forEach(warning => logger.warn(warning));
+}
+
+// 머지 매니저 인스턴스 생성 (보안 설정과 함께)
+const mergeManager = new MergeManager(config);
 
 // 미들웨어 설정
 app.use(cors());
