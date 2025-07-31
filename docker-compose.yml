@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  auto-merge-system:
+    build: .
+    container_name: auto-weekly-merge-system
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - auto-merge-network
+
+  # 선택사항: Redis를 통한 세션 관리 (향후 확장용)
+  redis:
+    image: redis:7-alpine
+    container_name: auto-merge-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - auto-merge-network
+    command: redis-server --requirepass ${REDIS_PASSWORD:-defaultpassword}
+
+  # 선택사항: 로그 수집을 위한 Elasticsearch (대용량 로그 처리시)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: auto-merge-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - auto-merge-network
+    profiles:
+      - logging
+
+  # 선택사항: Kibana 대시보드 (로그 시각화)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: auto-merge-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - auto-merge-network
+    profiles:
+      - logging
+
+volumes:
+  redis-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+networks:
+  auto-merge-network:
+    driver: bridge

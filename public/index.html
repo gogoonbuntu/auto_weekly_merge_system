@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Auto Weekly Merge Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Auto Weekly Merge Dashboard</h1>
+            <p>GitHub 리포지토리 자동 주간 머지 시스템</p>
+        </div>
+
+        <div class="dashboard">
+            <!-- GitHub 토큰 설정 -->
+            <div class="card token-config">
+                <h2>🔐 GitHub 토큰 설정</h2>
+                <div class="token-section">
+                    <div class="token-status" id="tokenStatus">
+                        <span class="status-icon" id="tokenStatusIcon">❓</span>
+                        <span class="status-text" id="tokenStatusText">토큰 상태 확인 중...</span>
+                    </div>
+                    <div class="token-input-group">
+                        <input type="password" id="githubToken" class="form-input" 
+                               placeholder="GitHub Personal Access Token을 입력하세요 (ghp_...)" 
+                               autocomplete="off">
+                        <button id="btnSaveToken" class="btn btn-primary">
+                            <span>💾</span> 토큰 저장
+                        </button>
+                        <button id="btnTestToken" class="btn btn-secondary">
+                            <span>🔍</span> 토큰 검증
+                        </button>
+                        <button id="btnToggleToken" class="btn btn-ghost" title="토큰 표시/숨김">
+                            <span>👁️</span>
+                        </button>
+                    </div>
+                    <div class="token-help">
+                        <details>
+                            <summary>🔗 GitHub Token 생성 방법</summary>
+                            <div class="help-content">
+                                <ol>
+                                    <li><a href="https://github.com/settings/tokens" target="_blank">GitHub Settings > Developer settings > Personal access tokens</a></li>
+                                    <li>"Generate new token (classic)" 클릭</li>
+                                    <li>필요한 권한 선택:
+                                        <ul>
+                                            <li><code>repo</code> - 리포지토리 전체 접근</li>
+                                            <li><code>workflow</code> - Actions 워크플로우 (선택사항)</li>
+                                        </ul>
+                                    </li>
+                                    <li>생성된 토큰을 복사하여 위 입력란에 붙여넣기</li>
+                                </ol>
+                                <p><strong>⚠️ 보안 주의사항:</strong> 토큰은 브라우저 세션에만 저장되며, 페이지를 새로고침하면 다시 입력해야 합니다.</p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 컨트롤 패널 -->
+            <div class="card">
+                <h2>🎮 실행 컨트롤</h2>
+                <div class="controls">
+                    <button id="btnMasterToRelease" class="btn btn-primary">
+                        <span>🔄</span> Master → Release 머지 실행
+                    </button>
+                    <button id="btnReleaseToDevelop" class="btn btn-secondary">
+                        <span>🔄</span> Release → Develop 머지 실행
+                    </button>
+                    <button id="btnStop" class="btn btn-danger hidden">
+                        <span>⏹️</span> 프로세스 중단
+                    </button>
+                    <button id="btnRefresh" class="btn" style="background: #6c757d; color: white;">
+                        <span>🔄</span> 상태 새로고침
+                    </button>
+                </div>
+            </div>
+
+            <!-- 시스템 상태 -->
+            <div class="card">
+                <h2>📈 시스템 상태</h2>
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalRepos">5</div>
+                        <div class="stat-label">총 리포지토리</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="completedRepos">0</div>
+                        <div class="stat-label">완료</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="currentProcess">대기 중</div>
+                        <div class="stat-label">현재 상태</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 프로세스 모니터 -->
+            <div class="card status-monitor">
+                <h2>🔍 프로세스 모니터</h2>
+                
+                <div id="processInfo" class="process-info hidden">
+                    <h4 id="processTitle">프로세스 실행 중...</h4>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                    </div>  
+                    <p id="processDetails">초기화 중...</p>
+                </div>
+
+                <div class="repository-list" id="repositoryList">
+                    <!-- 리포지토리 상태가 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+
+            <!-- 테스트 섹션 -->
+            <div class="card test-section">
+                <h2>🧪 시스템 테스트</h2>
+                
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="connection">연결 테스트</button>
+                        <button class="tab-button" data-tab="repository">리포지토리 테스트</button>
+                        <button class="tab-button" data-tab="branch">브랜치 테스트</button>
+                        <button class="tab-button" data-tab="permission">권한 테스트</button>
+                        <button class="tab-button" data-tab="api">API 테스트</button>
+                    </div>
+
+                    <!-- 연결 테스트 탭 -->
+                    <div id="connection" class="tab-content active">
+                        <div class="test-controls">
+                            <button id="btnTestConnection" class="btn btn-primary">
+                                <span>🔗</span> GitHub 연결 테스트
+                            </button>
+                            <button id="btnTestAuth" class="btn btn-secondary">
+                                <span>🔐</span> 인증 토큰 검증
+                            </button>
+                        </div>
+                        <div class="test-results" id="connectionResults">
+                            <p class="placeholder-text">테스트 버튼을 클릭하여 연결 상태를 확인하세요.</p>
+                        </div>
+                    </div>
+
+                    <!-- 리포지토리 테스트 탭 -->
+                    <div id="repository" class="tab-content">
+                        <div class="test-controls">
+                            <select id="repoSelect" class="form-select">
+                                <option value="">리포지토리 선택</option>
+                                <option value="danal-core">danal-core</option>
+                                <option value="smart-settlement-extapi">smart-settlement-extapi</option>
+                                <option value="smart-settlement-batch">smart-settlement-batch</option>
+                                <option value="smart-settlement-api">smart-settlement-api</option>
+                                <option value="smart-settlement-merchant-interface">smart-settlement-merchant-interface</option>
+                            </select>
+                            <button id="btnTestRepo" class="btn btn-primary">
+                                <span>📊</span> 리포지토리 상태 확인
+                            </button>
+                            <button id="btnTestAllRepos" class="btn btn-secondary">
+                                <span>📋</span> 전체 리포지토리 확인
+                            </button>
+                        </div>
+                        <div class="test-results" id="repositoryResults">
+                            <p class="placeholder-text">리포지토리를 선택하고 테스트를 실행하세요.</p>
+                        </div>
+                    </div>
+
+                    <!-- 브랜치 테스트 탭 -->
+                    <div id="branch" class="tab-content">
+                        <div class="test-controls">
+                            <div class="input-group">
+                                <select id="branchRepoSelect" class="form-select">
+                                    <option value="">리포지토리 선택</option>
+                                    <option value="danal-core">danal-core</option>
+                                    <option value="smart-settlement-extapi">smart-settlement-extapi</option>
+                                    <option value="smart-settlement-batch">smart-settlement-batch</option>
+                                    <option value="smart-settlement-api">smart-settlement-api</option>
+                                    <option value="smart-settlement-merchant-interface">smart-settlement-merchant-interface</option>
+                                </select>
+                                <input type="text" id="branchName" class="form-input" placeholder="브랜치명 (기본: master, release, develop)">
+                            </div>
+                            <button id="btnTestBranches" class="btn btn-primary">
+                                <span>🌿</span> 브랜치 상태 확인
+                            </button>
+                            <button id="btnTestAllBranches" class="btn btn-secondary">
+                                <span>🌳</span> 모든 브랜치 확인
+                            </button>
+                        </div>
+                        <div class="test-results" id="branchResults">
+                            <p class="placeholder-text">브랜치 정보를 확인할 리포지토리를 선택하세요.</p>
+                        </div>
+                    </div>
+
+                    <!-- 권한 테스트 탭 -->
+                    <div id="permission" class="tab-content">
+                        <div class="test-controls">
+                            <button id="btnTestPermissions" class="btn btn-primary">
+                                <span>🔑</span> 전체 권한 검증
+                            </button>
+                            <button id="btnTestPRPermission" class="btn btn-secondary">
+                                <span>📝</span> PR 생성 권한 확인
+                            </button>
+                            <button id="btnTestBranchPermission" class="btn btn-info">
+                                <span>🌿</span> 브랜치 생성 권한 확인
+                            </button>
+                        </div>
+                        <div class="test-results" id="permissionResults">
+                            <p class="placeholder-text">권한 테스트를 실행하여 GitHub 접근 권한을 확인하세요.</p>
+                        </div>
+                    </div>
+
+                    <!-- API 테스트 탭 -->
+                    <div id="api" class="tab-content">
+                        <div class="test-controls">
+                            <div class="input-group">
+                                <input type="text" id="apiEndpoint" class="form-input" placeholder="API 엔드포인트 (/repos/owner/repo)">
+                                <select id="apiMethod" class="form-select">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <button id="btnTestAPI" class="btn btn-primary">
+                                <span>⚡</span> API 호출 테스트
+                            </button>
+                            <button id="btnTestRateLimit" class="btn btn-secondary">
+                                <span>📊</span> Rate Limit 확인
+                            </button>
+                        </div>
+                        <div class="test-results" id="apiResults">
+                            <p class="placeholder-text">GitHub API 엔드포인트를 테스트해보세요.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 로그 뷰어 -->
+            <div class="card logs-section">
+                <h2>📋 로그 뷰어</h2>
+                
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="realtime">실시간 로그</button>
+                        <button class="tab-button" data-tab="history">히스토리</button>
+                        <button class="tab-button" data-tab="files">로그 파일</button>
+                    </div>
+
+                    <div id="realtime" class="tab-content active">
+                        <div class="log-container" id="logContainer"></div>
+                    </div>
+
+                    <div id="history" class="tab-content">
+                        <div id="historyContainer">히스토리를 로딩 중...</div>
+                    </div>
+
+                    <div id="files" class="tab-content">
+                        <div id="filesContainer">로그 파일을 로딩 중...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/ui.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/socket.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/test.js"></script>
+</body>
+</html>
